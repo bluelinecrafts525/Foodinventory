@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Scan Barcode</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column}
+#header{padding:24px 18px 10px;text-align:center;flex-shrink:0}
+#header h1{font-size:1.3rem;font-weight:700}
+#hint{color:#8b949e;font-size:.85rem;margin-top:6px;line-height:1.5}
+#reader{flex:1;overflow:hidden;background:#000}
+#reader video{width:100%!important;height:100%!important;object-fit:cover}
+#status{text-align:center;padding:16px 18px;font-size:.95rem;color:#8b949e;flex-shrink:0;min-height:56px}
+#status.ok{color:#3fb950}
+#status.err{color:#f85149}
+#cancelBtn{display:block;margin:0 auto 28px;padding:13px 36px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#e6edf3;border-radius:24px;font-size:1rem;font-weight:600;cursor:pointer;touch-action:manipulation}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>📷 Scan Barcode</h1>
+  <p id="hint">Point camera at the barcode on the package</p>
+</div>
+<div id="reader"></div>
+<div id="status">Starting camera…</div>
+<button id="cancelBtn" onclick="cancelScan()">Cancel — Go Back</button>
+
+<script>
+var scanner = null;
+var scanned = false;
+
+function setStatus(msg, cls) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+window.addEventListener('load', function() {
+  scanner = new Html5Qrcode('reader');
+  scanner.start(
+    { facingMode: 'environment' },
+    {
+      fps: 10,
+      qrbox: function(w, h) {
+        var s = Math.min(w, h) * 0.72;
+        return { width: s, height: Math.round(s * 0.5) };
+      }
+    },
+    function onScanSuccess(code) {
+      if (scanned) return;
+      scanned = true;
+      scanner.stop().catch(function(){});
+      setStatus('✅ Scanned! Sending to Food Inventory…', 'ok');
+      // Send barcode back to the GAS app tab
+      if (window.opener) {
+        window.opener.postMessage({ type: 'blc_barcode', value: code }, '*');
+        setTimeout(function() {
+          // Try to close this tab; if blocked, show instruction
+          try { window.close(); } catch(e) {}
+          setStatus('✅ Done! Switch back to the Food Inventory tab.', 'ok');
+        }, 600);
+      } else {
+        setStatus('Barcode: ' + code + ' — copy this and go back', 'ok');
+      }
+    },
+    function onScanFailure() {}
+  ).then(function() {
+    setStatus('Point camera at the barcode on the package');
+  }).catch(function(err) {
+    setStatus('⚠️ Camera error: ' + err, 'err');
+  });
+});
+
+function cancelScan() {
+  if (scanner) { try { scanner.stop(); } catch(e) {} }
+  try { window.close(); } catch(e) {}
+  history.back();
+}
+</script>
+</body>
+</html>
